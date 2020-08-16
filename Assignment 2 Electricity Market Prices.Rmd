@@ -1,0 +1,235 @@
+---
+title: 'Assignment 2: Electricity Market Prices'
+author: "Ecemnaz Bay"
+date: "2020-08-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Electricity Market Prices Report Brief
+
+In this report July 2020’s electricity prices MCP/SMP data are analyzed using using dplyr and ggplot2.
+July 2020 data downloaded from [EPIAS/EXIST MCP/SMP Page](https://rapor.epias.com.tr/rapor/xhtml/ptfSmfListeleme.xhtml). 
+
+### Used Packages
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
+```
+
+### Data Exploration
+
+#### Data Read
+
+```{r MCPSMP}
+MCPSMP  <- read.csv("C:/Users/ecemnaz.bay/Desktop/Ecemnaz/Master/IE 48A/July2020_ElectricityMarketPrices.csv")
+```
+
+##### Getting a glimpse of the data.
+
+```{r glimpse}
+
+MCPSMP %>% glimpse()
+
+MCPSMP %>%
+  select(Tarih , PTF, SMF) %>%
+  glimpse()
+```
+
+After looking to the content, some rearrangement are made on the data.
+
+* Columns are renamed
+* Date - Time information is converted to POSIXct format
+* New columns are added 
+  * SMPMCPdiff
+  * Date
+  * DayofWeek
+  * Hour
+
+A  new data frame is created with those modifications,  called `MCPSMPRearranged`. 
+
+```{r Rearrangement}
+MCPSMPRearranged <-
+MCPSMP %>%
+  rename(Date_Time = Tarih , MCP = PTF, SMP = SMF) %>%
+  mutate(Date_Time,DateTime=as.POSIXct(factor(Date_Time), format="%d.%m.%y %H:%M"))  %>%
+  mutate(SMPMCPdiff = SMP-MCP)  %>%
+  transmute(DateTime,MCP,SMP, Date = as_date(DateTime), DayofWeek = wday(DateTime,label = TRUE,week_start=1) ,Hour = hour(DateTime),SMPMCPdiff)
+
+MCPSMPRearranged %>% glimpse()
+
+```
+
+To analyze the prices over day of week : 
+
+* Average MCP and SMP values for each day of week are calculated.
+* SMP-MCP difference over average MCP for each day of week are calculated.
+
+```{r Daily Averages,message=FALSE, warning=FALSE}
+DailyAverages <-
+MCPSMPRearranged %>%
+  group_by(DayofWeek) %>%
+  summarise(DailyAvgMCP = mean(MCP),DailyAvgSMP = mean(SMP),DailyAvgDeviationFromMCP = mean(SMPMCPdiff)/ mean(MCP))
+
+knitr::kable(DailyAverages, format="markdown")
+
+```
+
+To analyze the prices over hour of day : 
+
+* Average MCP and SMP values for each hour.
+* SMP-MCP difference over average MCP for each hour are calculated.
+
+```{r Hourly Averages,message=FALSE, warning=FALSE}
+HourlyAverages <-
+MCPSMPRearranged %>%
+  group_by(Hour) %>%
+  summarise(HourlyAvgMCP = mean(MCP),HourlyAvgSMP = mean(SMP),HourlyAvgDeviationFromMCP = mean(SMPMCPdiff)/ mean(MCP))
+
+knitr::kable(HourlyAverages, format="markdown")
+
+```
+
+
+### Data Visualization
+
+Scatter plot shows that for most of the days MCP lies between 300-325 and SMP lies between 150-400.
+
+```{r Daily Scatter Plot, message=FALSE, warning=FALSE}
+
+ggplot(MCPSMPRearranged, aes(x=MCP, y=SMP, color=Date)) +
+            geom_point() +
+            theme_minimal() + 
+            ggtitle("MCP vs SMP Prices of July 2020") +
+            labs(x = "MCP",
+                 y = "SMP") +
+            theme(axis.text.x = element_text(angle = 45), legend.position = "top")
+
+```
+
+Below bar chart shows that for Wednesday and Friday, average SMP is lower than average MCP.\
+It can be concluded that, for those days energy consumption forecasts are higher than the actual consumption.\
+Forecasted and actual consumption values are closer to each other on Thursdays.\
+For the rest of the week, consumption is higher than the expected.
+
+```{r Day of Week Bar Chart, message=FALSE, warning=FALSE}
+
+DailyAveragePrices_Longer <-
+DailyAverages %>%
+  ungroup() %>%
+  pivot_longer(cols=c(DailyAvgMCP, DailyAvgSMP), names_to="PriceTypes", values_to="PriceValues") %>%
+  select(DayofWeek,PriceTypes,PriceValues)
+
+ggplot(DailyAveragePrices_Longer, aes(x=DayofWeek, y=PriceValues, fill=PriceTypes)) +
+            scale_fill_manual(values=c("coral3", "darkslateblue")) +
+            theme_minimal() +
+            geom_bar(stat="identity", position="dodge") +
+            ggtitle("Average MCP vs SMP Prices per Day of Week") +
+            theme(axis.text.x = element_text(angle = 45), legend.position = "top")
+
+```
+
+Same analysis can be done towards hours of the day.\
+It can be seen that better forecasts are made from beginning of the day up to noon time.\
+After noon up to night, average SMP is higher than MCP.\
+At the second half of the day, the consumption seems higher than forecasted amount on average.
+
+```{r Hour of Day Bar Chart, message=FALSE, warning=FALSE}
+
+HourlyAveragePrices_Longer <-
+HourlyAverages %>%
+  ungroup() %>%
+  pivot_longer(cols=c(HourlyAvgMCP, HourlyAvgSMP), names_to="PriceTypes", values_to="PriceValues") %>%
+  select(Hour,PriceTypes,PriceValues)
+
+ggplot(HourlyAveragePrices_Longer, aes(x=Hour, y=PriceValues, fill=PriceTypes)) +
+            scale_fill_manual(values=c("coral3", "darkslateblue")) +            
+            theme_minimal() +
+            geom_bar(stat="identity", position="dodge") +
+            ggtitle("Average MCP vs SMP Prices per Hour of Day") +
+            theme(axis.text.x = element_text(angle = 45), legend.position = "top")
+
+```
+
+Trendline shows that SMP is higher than MCP for most of the days.\
+There are certain spikes where the gap is higher, like beginning and ending of the month.\
+Forecast accuracy improvement studies can be considered for those days.
+
+```{r Average Price Per Hour Line Chart, message=FALSE, warning=FALSE}
+MCPSMPRearranged_Longer <- 
+MCPSMPRearranged %>% 
+  group_by(Date) %>%
+  summarise(MCP = mean(MCP), SMP = mean(SMP)) %>%
+  ungroup() %>%
+  pivot_longer(cols=c(MCP, SMP), names_to="PriceTypes", values_to="PriceValues")
+
+ggplot(MCPSMPRearranged_Longer, aes(x=Date, y=PriceValues, color=PriceTypes)) +
+           ggtitle("Average Price Trend per Day") +
+           geom_line() +
+           geom_point()+
+           theme_minimal() +
+           scale_color_manual(values=c("coral3", "darkslateblue")) +            
+           labs(x = "Date",
+                y = "Price Values") +
+           scale_x_date(date_breaks = "1 day", date_labels = "%m/%d") +
+           theme(axis.text.x = element_text(angle = 45), legend.position = "top")
+
+```
+
+The first heat map shows that MCP is higher after morning hours.\
+Specific date-time observations can be spotted with higher MCP values than normal, with darker blue color. 
+
+```{r Date-Time Heat Map, message=FALSE, warning=FALSE}
+
+ggplot(MCPSMPRearranged, aes(x=Hour, y=Date, fill=MCP)) +
+  ggtitle("MCP Heat Map Over Hours of July 2020") +
+  geom_tile() +
+  scale_fill_gradient(low="white", high="darkslateblue") +
+  labs(x = "Hours",
+       y = "Dates") +
+  scale_y_date(date_breaks = "5 day", date_labels = "%m/%d") +
+  scale_x_discrete(limits=c(0:23)) +
+  theme(axis.text.x = element_text(angle = 45), legend.position = "top",
+        legend.title = element_blank())
+```
+
+The second heat map shows a summary of average MCP values for different hours of each day of week.\
+For Friday, MCP is lower than other days between 9 am and 3 pm on average.\
+The highest average MCP is observed on Monday from 2pm to 4pm and on Wednesday from 2pm to 3pm. 
+
+```{r Day of Week-Time Heat Map, message=FALSE, warning=FALSE}
+
+ggplot(MCPSMPRearranged, aes(x=Hour, y=DayofWeek, fill=MCP)) +
+  ggtitle("MCP Heat Map Over Hours for Days of Week") +
+  geom_tile() +
+  scale_fill_gradient(low="white", high="coral3") +
+  labs(x = "Hours",
+       y = "Day of Week") +
+  scale_x_discrete(limits=c(0:23)) +
+  theme(axis.text.x = element_text(angle = 45), legend.position = "top",
+        legend.title = element_blank())
+```
+
+In the last heat map, the difference between SMP and MCP is summarized for each day of week.\
+Lighter fill colors indicates lower SMP minus MCP values for that day of week - hour pair.\
+The lowest value is seen for Friday morning hours, between 10am and 12pm which can indicate the highest energy surplus in the market.  
+
+```{r Day of Week-Time Price Diff Heat Map, message=FALSE, warning=FALSE}
+
+ggplot(MCPSMPRearranged, aes(x=Hour, y=DayofWeek, fill=SMPMCPdiff)) +
+  ggtitle("SMP - MCP Difference Over Hours for Days of Week") +
+  geom_tile() +
+  scale_fill_gradient(low="white", high="darkolivegreen4") +
+  labs(x = "Hours",
+       y = "Day of Week") +
+  scale_x_discrete(limits=c(0:23)) +
+  theme(axis.text.x = element_text(angle = 45), legend.position = "top",
+        legend.title = element_blank())
+
+```
