@@ -1,0 +1,92 @@
+---
+title: "Joins Lecture"
+author: "Ecemnaz Bay"
+date: "8/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Join two tables: dplyr join examples with comic characters and publishers.
+
+## Data Preparation
+
+```{r DataPrep, messages=FALSE}
+library(tidyverse) ## dplyr provides the join functions
+
+superheroes <- tibble::tribble(
+       ~name, ~alignment,  ~gender,          ~publisher,
+   "Magneto",      "bad",   "male",            "Marvel",
+     "Storm",     "good", "female",            "Marvel",
+  "Mystique",      "bad", "female",            "Marvel",
+    "Batman",     "good",   "male",                "DC",
+     "Joker",      "bad",   "male",                "DC",
+  "Catwoman",      "bad", "female",                "DC",
+   "Hellboy",     "good",   "male", "Dark Horse Comics"
+  )
+
+publishers <- tibble::tribble(
+  ~publisher, ~yr_founded,
+        "DC",       1934L,
+    "Marvel",       1939L,
+     "Image",       1992L
+  )
+```
+
+
+```{r print}
+print(publishers)
+print(superheroes)
+```
+
+# Joins
+
+## Left Join
+
+Return all rows from x, and all columns from x and y. If there are multiple matches between x and y, all combination of the matches are returned. This is a mutating join.
+
+```{r LeftJoin}
+left_join(superheroes,publishers,by="publisher")
+```
+
+## Inner Join
+
+Return all rows from x where there are matching values in y, and all columns from x and y. If there are multiple matches between x and y, all combination of the matches are returned. This is a mutating join.
+
+```{r InnerJoin}
+inner_join(superheroes,publishers,by="publisher")
+```
+
+## Semi Join
+
+Return all rows from x where there are matching values in y, keeping just columns from x. A semi join differs from an inner join because an inner join will return one row of x for each matching row of y, where a semi join will never duplicate rows of x. This is a filtering join.
+
+```{r SemiJoin}
+semi_join(superheroes,publishers,by="publisher")
+```
+
+## Full Join
+
+Return all rows and all columns from both x and y. Where there are not matching values, returns NA for the one missing. This is a mutating join.
+
+```{r FullJoin}
+full_join(superheroes,publishers,by="publisher")
+```
+
+## Anti Join
+
+Return all rows from x where there are not matching values in y, keeping just columns from x. This is a filtering join.
+
+```{r AntiJoin}
+anti_join(superheroes,publishers,by="publisher")
+```
+
+## Right Join
+
+```{r RightJoin}
+right_join(superheroes,publishers,by="publisher")
+
+```
+

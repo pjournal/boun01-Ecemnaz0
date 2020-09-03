@@ -1,0 +1,47 @@
+---
+title: "Pivot Longer/Wider"
+author: "Ecemnaz Bay"
+date: "8/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, messages=FALSE, warning=FALSE}
+library(tidyverse)
+swt <- as_tibble(swiss,rownames = "region")
+```
+
+```{r}
+glimpse(swt)
+```
+
+## Pivot Longer
+
+```{r}
+swt %>% pivot_longer(cols = c(- region))
+```
+
+```{r}
+swt_summary_long <- swt %>% 
+  pivot_longer(cols = c(- region), names_to="category", values_to="perc_value") %>% 
+  group_by(category) %>%
+  summarise(min_val=min(perc_value),mean_val=mean(perc_value),max_val=max(perc_value)) 
+```
+
+## Pivot Wider
+
+```{r}
+swt_summary_long %>%
+  pivot_longer(cols=c(-category)) %>%  
+  pivot_wider(id_cols="name", names_from=category,values_from=value)
+```
+```{r}
+swt_summary_long %>%
+  pivot_longer(cols=c(-category)) %>% 
+  add_row(category="New Region",name="min_val", value=0) %>% 
+  pivot_wider(id_cols="name", names_from=category,values_from=value)
+```
+
