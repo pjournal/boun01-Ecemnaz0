@@ -7,3 +7,5 @@ You can find my assignments on this page.
 
 ### Assignment 2
 [Electricity Market Prices](https://pjournal.github.io/boun01-Ecemnaz0/Assignment-2-Electricity-Market-Prices.html)
+
+### In Class Exercises
