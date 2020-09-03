@@ -9,3 +9,4 @@ You can find my assignments on this page.
 [Electricity Market Prices](https://pjournal.github.io/boun01-Ecemnaz0/Assignment-2-Electricity-Market-Prices.html)
 
 ### In Class Exercises
+[In Class Exercises](https://pjournal.github.io/boun01-Ecemnaz0/tree/gh-pages/In%20Class%20Exercises)
