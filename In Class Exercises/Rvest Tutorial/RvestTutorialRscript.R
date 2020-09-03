@@ -9,16 +9,21 @@ html_obj <- read_html(the_url)
 
 html_obj %>% html_structure()
 
-table_list <- html_obj %>% html_table(fill=TRUE)
-data_df <- as_tibble(table_list[[4]])
-data_df %>% 
-  rename(category=1,cc_txn=2,dc_txn=3,cc_val=4,,dc_val=5) %>% 
-  slice(-(1:2)) %>% 
+html_df <- read_html(the_url) %>% html_table(fill=TRUE)
+
+
+html_df %>% 
+  # Since we do not have too many columns let's rename them manually 
+  # number (num) or value (val) of transactions (txn) 
+  # by credit card (cc) or debit card (dc)
+  rename(category = 1, num_txn_cc = 2, num_txn_dc = 3, val_txn_cc = 4, val_txn_dc = 5) %>%
+  # remove the first two rows because they are actually titles
+  slice(-(1:2)) %>%
+  # then convert every numeric value by using parse_number function from readr
   mutate(
-    across(
-      -category,
-      ~readr::parse_number(.,locale=locale(decimal_mark = ",",grouping_mark = "."))
-    ),
-    year=the_year,
-    month=the_month
+    across(-category, 
+           ~readr::parse_number(.,
+                                locale=readr::locale(decimal_mark=",",grouping_mark = ".")
+           )
+    )
   )
