@@ -8,6 +8,9 @@ You can find my assignments on this page.
 ### Assignment 2
 [Electricity Market Prices](https://pjournal.github.io/boun01-Ecemnaz0/Assignment-2-Electricity-Market-Prices.html)
 
+### Assignment 3
+[Diamond Price Estimation](https://pjournal.github.io/boun01-Ecemnaz0/Assignment3-v3.html)
+
 ## Group Homework
 Analyzing the New York City Airbnb Open Data obtained from [Kaggle](https://www.kaggle.com/dgomonov/new-york-city-airbnb-open-data).
 Data includes information about accommodation places such as their prices, host names, mininum nights to stay, review statistics, availabilities ,room types, latitudes, longitudes, in which neighbourhood & neighbourhood group they are. 
