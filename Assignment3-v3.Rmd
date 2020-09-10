@@ -1,0 +1,302 @@
+---
+title: "Assignment 3 - Diamonds Price Estimation"
+author: "Ecemnaz Bay"
+date: "9/4/2020"
+output: 
+  html_document:
+    toc: true # table of content true
+    toc_depth: 3  # upto two depths of headings (specified by #, ## and ###)
+    number_sections: true  ## if you want number sections at each table header
+    theme: united  # many options for theme, this one is my favorite.
+    highlight: tango  # specifies the syntax highlighting style
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+#Required Packages
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyverse)
+library(tidyr)
+library(kableExtra)
+library(corrplot)
+library(grid)
+library(lattice)
+library(ggpubr)
+library(scales)
+library(wesanderson)
+library(RColorBrewer)
+library(Metrics)
+
+```
+
+
+## Diamonds Price Estimation
+
+That assignment aims to find a prediction model for estimating the price of a diamond given its properties. \
+`rDiamonds` data set in `rggplot2` package is used for the assignment. 
+
+Training and test data sets are created. 
+
+```{r Diamonds}
+set.seed(503)
+diamonds_test <- diamonds %>% mutate(diamond_id = row_number()) %>% 
+    group_by(cut, color, clarity) %>% sample_frac(0.2) %>% ungroup()
+
+diamonds_train <- anti_join(diamonds %>% mutate(diamond_id = row_number()), 
+    diamonds_test, by = "diamond_id")
+
+diamonds_all <- bind_rows(diamonds_train,diamonds_test)
+```
+
+Below is a sample from train data set.
+
+```{r}
+  head(diamonds_train)%>%
+  kbl(caption = "Sample from Training Data") %>%
+  kable_minimal(full_width = F)
+  
+  
+```
+
+Below is a sample from test data set.
+
+```{r}
+  head(diamonds_test)%>%
+  kbl(caption = "Sample from Test Data") %>%
+  kable_minimal(full_width = F) 
+  
+```
+
+### Correlations Plot
+
+
+In order to have a clear visualization, a function is used to plot the correlations. (Source can be seen in references section.) 
+
+* Converts all non-numeric variables into numeric ones. 
+* Drops duplicates and perfect correlations (correlations with itself).
+* Set up the data frame sorted by the highest correlation first to see the raw correlations in a table.
+
+Here, the function is changed to include perfect correlations and duplicates. \
+Moreover, it is set to show variables only have a specific significance level above a threshold. \
+That threshold is set to 0.05 as the initial default.
+
+```{r}
+diamonds_AllForCorr <- select(diamonds_all, -diamond_id)
+
+corr_simple <- function(data=diamonds_AllForCorr,sig=0.05){
+  #convert data to numeric in order to run correlations
+  #convert to factor first to keep the integrity of the data - each value will become a number rather than turn into NA
+  df_cor <- data %>% mutate_if(is.character, as.factor)
+  df_cor <- df_cor %>% mutate_if(is.factor, as.numeric)
+  #run a correlation and drop the insignificant ones
+  corr <- cor(df_cor)
+    #prepare to drop duplicates and correlations of 1     
+    #corr[lower.tri(corr,diag=TRUE)] <- NA 
+    #drop perfect correlations
+    #corr[corr == 1] <- NA 
+  #turn into a 3-column table
+  corr <- as.data.frame(as.table(corr))
+  #remove the NA values from above 
+  corr <- na.omit(corr) 
+  #select significant values  
+  corr <- subset(corr, abs(Freq) > sig) 
+  #sort by highest correlation
+  corr <- corr[order(-abs(corr$Freq)),] 
+  #print table
+  print(corr)
+  #turn corr back into matrix in order to plot with corrplot
+  mtx_corr <- reshape2::acast(corr, Var1~Var2, value.var="Freq")
+  
+  #plot correlations visually
+  corrplot(mtx_corr, is.corr=FALSE, tl.col="black", na.label=" ")
+}
+corr_simple()
+
+
+
+```
+
+
+
+Structure of variables that has correlation with price with a significance level over 0.05 is as follows :
+
+* Price is a continuous response variable 
+* x is a continuous explanatory variable
+* y is a continuous explanatory variable
+* z is a continuous explanatory variable
+* Carat is a continuous explanatory variable
+* Color is an ordered factor type of explanatory variable with 7 different levels.
+* Table is a continuous explanatory variable
+* Clarity is an ordered factor type of explanatory variable with 8 different levels.
+* Cut is an ordered factor type of explanatory variable with 5 different levels.
+
+```{r}
+str(diamonds_all)
+```
+
+Upon correlation table, darker blue and bigger circles denotes higher correlation. \
+Thus, 4 variables are selected to build the model:
+
+* x
+* y
+* z
+* Carat
+
+In order to understand distribution of the response variable, price, density plots are used. \
+In the below figure, density plots of overall data, test and train sets are combined together. \
+
+Response variable seems to follow a continuous probability distribution. 
+Price has a sharp lower bound value of zero (always positive) but no sharp upper bound can be defined. \
+As seen in density plots, the tail on the right hand side is longer, so a positive skewness is observed. \
+Gamma distributions can be used according to these observations.
+
+```{r}
+alldata <- ggplot(diamonds_all, aes(x=price))+
+  geom_density(color="slategray3", fill="slategray1")+
+  theme_minimal()+
+  ggtitle("Density Plot of Whole Data")+
+  scale_y_continuous(labels = comma)
+
+
+traindata <- ggplot(diamonds_train, aes(x=price))+
+  geom_density(color="darkseagreen3", fill="darkseagreen1")+
+  theme_minimal()+
+  ggtitle("Density Plot of Taining Set")+
+  scale_y_continuous(labels = comma)
+
+
+
+testdata <- ggplot(diamonds_test, aes(x=price))+
+  geom_density(color="peachpuff2", fill="peachpuff")+
+  theme_minimal()+
+  ggtitle("Density Plot of Test Set")+
+  scale_y_continuous(labels = comma)
+
+
+ggarrange(alldata, traindata, testdata, ncol = 1, nrow = 3)
+
+
+```
+
+
+### Evaluating Models 
+
+A base model is built including all explanatory variables selected via correlation plot. \
+Backward regression is applied to find out the best possible model.
+
+```{r, warning=FALSE }
+diamonds_train_forGamma <- na.omit(diamonds_train)
+diamonds_test_forGamma <- na.omit(diamonds_test)
+
+Model_1 <- glm(price~x+y+z+carat,family = Gamma,
+        data=diamonds_train_forGamma,
+        start=c(0.5,0.5,0.5,0.5,0.5))
+
+summary(Model_1)
+```
+
+The least significant variable, z is eliminated from th emodel. New model shows imrovement according to AIC.
+
+```{r, warning=FALSE}
+Model_2 <- glm(price~x+y+carat,family = Gamma,
+        data=diamonds_train_forGamma,
+        start=c(0.5,0.5,0.5,0.5))
+
+summary(Model_2)
+
+```
+
+The least significant variable, y is eliminated from the model. New model shows imrovement according to AIC. \
+
+In Model_3 all explanatory variables have significant effect on the price with a significance level of 0.05.
+
+```{r, warning=FALSE}
+Model_3 <- glm(price~x+carat,family = Gamma,
+        data=diamonds_train_forGamma,
+        start=c(0.5,0.5,0.5))
+
+summary(Model_3)
+```
+
+
+Different link functions of Gamma are compared according to their AIC values. \
+Identity link function is selected with the lowest AIC value. \
+AIC of identity, inverse and log link functions are calculated respectively as follows : 
+
+```{r, warning=FALSE}
+for(link in c("identity","inverse","log")){ 
+  GlmModel = glm(price~x+carat,
+                 family = Gamma(link=link),
+                 data=diamonds_train_forGamma,
+                 start=c(0.5,0.5,0.5))
+  print(AIC(GlmModel)) 
+  }
+
+
+```
+
+Here is the summary of final model :
+
+```{r, warning=FALSE}
+FinalModel <- glm(price~x+carat,family = Gamma(link="identity"),
+                  data=diamonds_train_forGamma,
+                  start=c(0.5,0.5,0.5))
+
+summary(FinalModel)
+```
+
+### RMSE Calculation
+
+In order to get insight about prediction performance, RMSE is calculated.
+
+```{r, warning=FALSE }
+
+   pred_TrainData = predict(FinalModel) 
+   pred_TestData =  predict(FinalModel,new=diamonds_test_forGamma) 
+   
+   rmse(diamonds_test_forGamma$price, pred_TestData)
+
+```
+
+### Residual Plot
+
+According to residual plot, constant variance and zero mean assumptions seems to hold for the used model.
+  
+```{r, warning=FALSE }
+
+FinalModel_TestData <- glm(price~x+carat,family = Gamma(link="identity"),
+                  data=diamonds_test_forGamma,
+                  start=c(0.5,0.5,0.5))
+
+ggplot(FinalModel_TestData) + 
+  geom_point(aes(x=.fitted, y=.resid, col=.resid)) +
+  theme_minimal() + 
+  ggtitle("Residual Plot") +
+  labs(x = "Fitted Values",
+       y = "Residuals") +
+  scale_color_gradient(low="darkslateblue", high="coral3") +
+  labs(col = "Residuals")
+  
+
+```
+  
+
+
+### References
+
+* https://towardsdatascience.com/how-to-create-a-correlation-matrix-with-too-many-variables-309cc0c0a57
+* http://people.stat.sfu.ca/~raltman/stat402/402L26.pdf
+* https://www.mygreatlearning.com/blog/gamma-distribution/
+* https://wiki.analytica.com/index.php?title=Gamma_distribution
+* https://codeburst.io/2-important-statistics-terms-you-need-to-know-in-data-science-skewness-and-kurtosis-388fef94eeaa
+* https://stat.ethz.ch/pipermail/r-help/2009-December/416122.html
+* https://www.rdocumentation.org/packages/Metrics/versions/0.1.4/topics/rmse
+* https://cran.r-project.org/web/packages/Metrics/Metrics.pdf
+* https://stackoverflow.com/questions/36731027/how-can-i-plot-the-residuals-of-lm-with-ggplot
+
