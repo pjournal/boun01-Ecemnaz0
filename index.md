@@ -2,6 +2,9 @@
 
 You can find my assignments on this page. 
 
+### Final Assignment
+[Final Assignment](https://pjournal.github.io/boun01-Ecemnaz0/FinalAssignment-EcemnazBay-2019702015.html)
+
 ### Assignment 1
 [RMarkdown Homework](https://pjournal.github.io/boun01-Ecemnaz0/RMarkdown_Homework0.html)
 
